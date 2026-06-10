@@ -1,0 +1,23 @@
+[
+  "init",
+  "ipc",
+  "events",
+  "fs",
+  "cache",
+  "proc",
+  "apps",
+  "window_manager",
+  "theme",
+  "power",
+  "shell",
+  "libarchive",
+  "ini-parser",
+  "lzma",
+  "memfs",
+  "nanoid",
+  "jszip",
+  "tauri",
+  "diskman",
+  { "name": "panel", "path": "/lib/desktop/panel.js" },
+  "boot"
+]
