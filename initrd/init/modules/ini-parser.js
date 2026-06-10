@@ -3,9 +3,7 @@
 
 console.log("[ini-parser] Module loaded");
 
-ros.modules = ros.modules || {};
-
-ros.modules["ini-parser"] = {
+ros["ini-parser"] = {
   // Parse INI string into a JS object
   parse(iniText) {
     const result = {};

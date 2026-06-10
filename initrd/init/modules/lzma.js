@@ -3,9 +3,7 @@
 
 console.log("[lzma] Initializing module...");
 
-ros.modules = ros.modules || {};
-
-ros.modules.lzma = {
+ros.lzma = {
   // Decompress raw LZMA/XZ buffer into a Uint8Array (requires LZMA decoder lib)
   decompress(buffer) {
     if (typeof LZMA === "undefined" || !LZMA.decompress) {
