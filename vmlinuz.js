@@ -6,7 +6,7 @@ boot();
 
 async function boot() {
   try {
-    const res = await fetch("/etc/modules.json");
+    const res = await fetch("etc/modules.json");
     if (!res.ok) throw new Error("Could not load /etc/modules.json");
     const modules = await res.json();
 
@@ -14,8 +14,8 @@ async function boot() {
       // Supports both "modname" (kernel module) and {"name":"x","path":"/lib/..."} (userspace)
       const name = typeof mod === "string" ? mod : mod.name;
       const path = typeof mod === "string"
-        ? `/initrd/init/modules/${mod}.js`
-        : mod.path;
+        ? `initrd/init/modules/${mod}.js`
+        : mod.path.replace(/^\//, "");
 
       try {
         await import(path);

@@ -2,7 +2,7 @@
 
 console.log("[theme] Module loaded");
 
-fetch("/etc/theme.json")
+fetch("etc/theme.json")
   .then(res => res.json())
   .then(theme => {
     const css = document.createElement("style");
