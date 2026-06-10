@@ -14,8 +14,8 @@ async function boot() {
       // Supports both "modname" (kernel module) and {"name":"x","path":"/lib/..."} (userspace)
       const name = typeof mod === "string" ? mod : mod.name;
       const path = typeof mod === "string"
-        ? `initrd/init/modules/${mod}.js`
-        : mod.path.replace(/^\//, "");
+        ? `./initrd/init/modules/${mod}.js`
+        : `./${mod.path.replace(/^\//, "")}`;
 
       try {
         await import(path);
