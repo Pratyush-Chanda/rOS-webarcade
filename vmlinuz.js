@@ -37,6 +37,8 @@ async function boot() {
     });
   }
 
-  splash.remove();
+  splash.style.transition = "opacity 0.6s ease";
+  splash.style.opacity    = "0";
+  setTimeout(() => splash.remove(), 650);
   dispatchEvent(new Event("kernel:ready"));
 }
