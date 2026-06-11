@@ -127,8 +127,13 @@ function showCreationForm() {
   };
 
   document.getElementById("submit-btn").onclick = async () => {
-    const username = document.getElementById("f-username").value.trim();
-    const password = document.getElementById("f-password").value;
+    const username  = document.getElementById("f-username").value.trim();
+    const password  = document.getElementById("f-password").value;
+    const iconSize  = document.getElementById("f-iconSize").value;
+    const showTrash = document.getElementById("f-showTrash").checked;
+    const showHome  = document.getElementById("f-showHome").checked;
+    const showDocs  = document.getElementById("f-showDocs").checked;
+
     if (!username) { document.getElementById("f-username").focus(); return; }
     if (!password) { document.getElementById("f-password").focus(); return; }
 
@@ -136,10 +141,10 @@ function showCreationForm() {
 
     const userIni = `username=${username}`;
     const homeIni = [
-      `iconSize=${document.getElementById("f-iconSize").value}`,
-      `showTrash=${document.getElementById("f-showTrash").checked ? 1 : 0}`,
-      `showHome=${document.getElementById("f-showHome").checked ? 1 : 0}`,
-      `showDocs=${document.getElementById("f-showDocs").checked ? 1 : 0}`
+      `iconSize=${iconSize}`,
+      `showTrash=${showTrash ? 1 : 0}`,
+      `showHome=${showHome ? 1 : 0}`,
+      `showDocs=${showDocs ? 1 : 0}`
     ].join("\n");
 
     const files = {
