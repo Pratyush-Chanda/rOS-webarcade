@@ -46,7 +46,10 @@ async function startDiskManager() {
     </div>
   `;
   document.body.appendChild(container);
-  requestAnimationFrame(() => container.classList.add("rd-visible"));
+  requestAnimationFrame(() => {
+    container.classList.add("rd-visible");
+    container.querySelector(".rd-card").classList.add("rd-visible");
+  });
 
   document.getElementById("rdi-file").addEventListener("change", async e => {
     const file = e.target.files[0];
