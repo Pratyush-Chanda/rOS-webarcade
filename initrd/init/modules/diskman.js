@@ -14,7 +14,8 @@ if (document.readyState === "loading") {
 async function waitForModule(name, timeout = 5000) {
   const start = Date.now();
   while (!ros[name]) {
-    if (Date.now() - start > timeout) throw new Error(`Module '${name}' not loaded in time`);
+    if (Date.now() - start > timeout)
+      ros.panic(`Kernel module "${name}" timed out — it may have failed to register`);
     await new Promise(r => setTimeout(r, 100));
   }
 }
