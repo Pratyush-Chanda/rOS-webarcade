@@ -3,7 +3,7 @@
 
 console.log("[libarchive] Initializing universal archive module...");
 
-ros.modules = ros.modules || {};
+
 
 function detectFormat(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -31,7 +31,7 @@ function parseTar(buffer) {
   return files;
 }
 
-ros.modules.libarchive = {
+ros.libarchive = {
   async unpack(buffer, password = "") {
     const format = detectFormat(buffer);
     let files = {};
@@ -46,22 +46,22 @@ ros.modules.libarchive = {
         break;
       }
       case "gz": {
-        if (!ros.modules.lzma) throw new Error("lzma module not loaded");
-        const raw = ros.modules.lzma.decompressGzip(buffer);
+        if (!ros.lzma) throw new Error("lzma module not loaded");
+        const raw = ros.lzma.decompressGzip(buffer);
         files = parseTar(raw);
         break;
       }
       case "xz": {
-        if (!ros.modules.lzma) throw new Error("lzma module not loaded");
-        const raw = ros.modules.lzma.decompress(buffer);
+        if (!ros.lzma) throw new Error("lzma module not loaded");
+        const raw = ros.lzma.decompress(buffer);
         files = parseTar(raw);
         break;
       }
       case "7z": {
-        if (!ros.modules["7z"] || !ros.modules["7z"].extract) {
+        if (!ros["7z"] || !ros["7z"].extract) {
           throw new Error("7z.js module not loaded or unsupported");
         }
-        const extracted = await ros.modules["7z"].extract(buffer);
+        const extracted = await ros["7z"].extract(buffer);
         for (const entry of extracted) {
           files[entry.name] = entry.buffer;
         }
