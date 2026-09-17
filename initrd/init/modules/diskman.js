@@ -2,10 +2,15 @@
 
 console.log("[rDiskette] Preparing user disk manager");
 
+// Sentinel used to distinguish "user cancelled the password prompt" from an
+// actual mount failure, so the caller can quietly reset instead of showing
+// an error screen.
+class MountCancelled extends Error {}
+
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", () => startDiskManager());
+  document.addEventListener("DOMContentLoaded", () => startDiskManager().catch(err => console.error("[rDiskette] Fatal:", err)));
 } else {
-  startDiskManager();
+  startDiskManager().catch(err => console.error("[rDiskette] Fatal:", err));
 }
 
 async function waitForModule(name, timeout = 5000) {
@@ -21,6 +26,7 @@ async function startDiskManager() {
   await waitForModule("libarchive");
   await waitForModule("lzma");
   await waitForModule("ini-parser");
+  await waitForModule("crypto");
 
   injectStyles();
 
@@ -53,6 +59,11 @@ async function startDiskManager() {
       await mountDiskette(file);
       startLoginManager();
     } catch (err) {
+      if (err instanceof MountCancelled) {
+        document.getElementById("rdiskette-loader").remove();
+        startDiskManager();
+        return;
+      }
       showError("Mount failed", err.message);
     }
   });
@@ -137,19 +148,20 @@ function showCreationForm() {
     if (!username) { document.getElementById("f-username").focus(); return; }
     if (!password) { document.getElementById("f-password").focus(); return; }
 
+    const wallpaperInput = document.getElementById("f-wallpaper");
+    const wallpaperFile  = wallpaperInput.files[0] || null;
+
     showLoading("Creating your rDiskette");
 
-    const userIni = `username=${username}`;
-    const homeIni = [
+    const homeIniLines = [
       `iconSize=${iconSize}`,
       `showTrash=${showTrash ? 1 : 0}`,
       `showHome=${showHome ? 1 : 0}`,
       `showDocs=${showDocs ? 1 : 0}`
-    ].join("\n");
+    ];
 
     const files = {
-      "user.ini":               new TextEncoder().encode(userIni),
-      "Desktop/.home.ini":      new TextEncoder().encode(homeIni),
+      "user.ini":               new TextEncoder().encode(`username=${username}`),
       "Documents/.placeholder": new Uint8Array(),
       "Downloads/.placeholder": new Uint8Array(),
       "Photos/.placeholder":    new Uint8Array(),
@@ -158,12 +170,25 @@ function showCreationForm() {
     };
 
     try {
-      const blob = await ros.libarchive.pack(files, password);
-      const file = new Blob([blob], { type: "application/octet-stream" });
+      if (wallpaperFile) {
+        const ext        = (wallpaperFile.name.split(".").pop() || "img").toLowerCase();
+        const wallpaperPath = `System/wallpaper.${ext}`;
+        files[wallpaperPath] = new Uint8Array(await wallpaperFile.arrayBuffer());
+        homeIniLines.push(`wallpaper=${wallpaperPath}`);
+      }
+      files["Desktop/.home.ini"] = new TextEncoder().encode(homeIniLines.join("\n"));
+
+      const packed  = await ros.libarchive.pack(files);
+      const encoded = await ros.crypto.encrypt(packed, password);
+      const file    = new Blob([encoded], { type: "application/octet-stream" });
+
       const a    = document.createElement("a");
-      a.href     = URL.createObjectURL(file);
+      const url  = URL.createObjectURL(file);
+      a.href     = url;
       a.download = `${username}.rdi`;
       a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+
       await mountDiskette(file, password);
       startLoginManager();
     } catch (err) {
@@ -172,33 +197,65 @@ function showCreationForm() {
   };
 }
 
+// Groups the archive's flat file paths into a proper directory tree.
+// (Previously this did `archive["Documents"]`, but JSZip only ever produces
+// flat keys like "Documents/.placeholder" — there is no "Documents" key —
+// so every folder in ros.user.home was silently always {}.)
+const HOME_FOLDERS = { Desktop: "Desktop", Documents: "Documents", Downloads: "Downloads", Photos: "Photos", Videos: "Videos", ".config": "Config" };
+
+function buildHome(archive) {
+  const home = {};
+  for (const key in HOME_FOLDERS) home[HOME_FOLDERS[key]] = {};
+
+  for (const path in archive) {
+    const slash = path.indexOf("/");
+    if (slash === -1) continue; // top-level file (e.g. user.ini), not part of a home folder
+    const top  = path.slice(0, slash);
+    const rest = path.slice(slash + 1);
+    const dest = HOME_FOLDERS[top];
+    if (!dest) continue;
+    if (rest === ".placeholder" || rest === ".home.ini") continue; // internal bookkeeping, not user content
+    home[dest][rest] = archive[path];
+  }
+  return home;
+}
+
 async function mountDiskette(file, knownPassword = null) {
-  const arrayBuffer = await file.arrayBuffer();
-  const password    = knownPassword ?? prompt("Enter your rDiskette password:");
-  const archive     = await ros.libarchive.unpack(arrayBuffer, password);
+  const rawBuffer = await file.arrayBuffer();
+
+  let archiveBytes;
+  if (ros.crypto.isEncrypted(rawBuffer)) {
+    const password = knownPassword ?? prompt("Enter your rDiskette password:");
+    if (password === null) throw new MountCancelled();
+    archiveBytes = await ros.crypto.decrypt(rawBuffer, password);
+  } else {
+    archiveBytes = new Uint8Array(rawBuffer);
+  }
+
+  const archive = await ros.libarchive.unpack(archiveBytes);
 
   if (!archive["user.ini"]) throw new Error("Missing user.ini — invalid rDiskette");
 
   const userConf = ros["ini-parser"].parse(new TextDecoder().decode(archive["user.ini"]));
+  const home     = buildHome(archive);
 
   ros.user = {
     name:            userConf.username || "Guest",
     config:          archive,
     desktopSettings: {},
-    home: {
-      Desktop:   archive["Desktop"]   || {},
-      Documents: archive["Documents"] || {},
-      Downloads: archive["Downloads"] || {},
-      Photos:    archive["Photos"]    || {},
-      Videos:    archive["Videos"]    || {},
-      Config:    archive[".config"]   || {}
-    }
+    home
   };
 
   if (archive["Desktop/.home.ini"]) {
     ros.user.desktopSettings = ros["ini-parser"].parse(
       new TextDecoder().decode(archive["Desktop/.home.ini"])
     );
+  }
+
+  // Bridge the mounted disk into ros.fs so ros.shell (`ls`, etc.) actually
+  // sees the user's files instead of always reading an empty in-memory store.
+  if (ros.fs) {
+    for (const path in archive) ros.fs.write(path, archive[path]);
   }
 
   console.log("[rDiskette] Mounted for user:", ros.user.name);

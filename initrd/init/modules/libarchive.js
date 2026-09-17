@@ -15,15 +15,31 @@ function detectFormat(buffer) {
   return "unknown";
 }
 
+function parseTarSize(bytes) {
+  // POSIX tar stores size as octal ASCII, but GNU tar switches to a
+  // base-256 encoding (top bit of the first byte set) for large files.
+  if (bytes[0] & 0x80) {
+    let size = 0n;
+    for (let i = 1; i < bytes.length; i++) size = (size << 8n) | BigInt(bytes[i]);
+    return Number(size);
+  }
+  const str = new TextDecoder().decode(bytes).replace(/\0.*/, "").trim();
+  return str ? parseInt(str, 8) : 0;
+}
+
 function parseTar(buffer) {
   const files = {};
   const bytes = new Uint8Array(buffer);
   let offset = 0;
-  while (offset < bytes.length) {
-    const name = new TextDecoder().decode(bytes.subarray(offset, offset + 100)).replace(/\0.*/, "");
-    const sizeStr = new TextDecoder().decode(bytes.subarray(offset + 124, offset + 136)).replace(/\0.*/, "");
-    const size = parseInt(sizeStr.trim(), 8);
+  // Two consecutive 512-byte zero blocks mark the end of the archive.
+  while (offset + 512 <= bytes.length) {
+    const header = bytes.subarray(offset, offset + 512);
+    if (header.every(b => b === 0)) break;
+
+    const name = new TextDecoder().decode(header.subarray(0, 100)).replace(/\0.*/, "");
+    const size = parseTarSize(header.subarray(124, 136));
     if (!name) break;
+
     const start = offset + 512;
     files[name] = bytes.slice(start, start + size);
     offset = start + Math.ceil(size / 512) * 512;
@@ -31,29 +47,36 @@ function parseTar(buffer) {
   return files;
 }
 
+// NOTE: archive-level password options used to be accepted here and handed
+// straight to JSZip's generateAsync/loadAsync. Stock JSZip has no built-in
+// encryption support, so that option was a silent no-op — files were never
+// actually protected. Encryption now lives one layer up, in crypto.js
+// (real AES-GCM over the whole packed buffer), so this module only ever
+// deals with plain archive bytes.
 ros.libarchive = {
-  async unpack(buffer, password = "") {
+  async unpack(buffer) {
     const format = detectFormat(buffer);
     let files = {};
 
     switch (format) {
       case "zip": {
         const zip = new JSZip();
-        const archive = await zip.loadAsync(buffer, { password });
+        const archive = await zip.loadAsync(buffer);
         for (const path in archive.files) {
+          if (archive.files[path].dir) continue;
           files[path] = await archive.files[path].async("uint8array");
         }
         break;
       }
       case "gz": {
         if (!ros.lzma) throw new Error("lzma module not loaded");
-        const raw = ros.lzma.decompressGzip(buffer);
+        const raw = await ros.lzma.decompressGzip(buffer);
         files = parseTar(raw);
         break;
       }
       case "xz": {
         if (!ros.lzma) throw new Error("lzma module not loaded");
-        const raw = ros.lzma.decompress(buffer);
+        const raw = await ros.lzma.decompress(buffer);
         files = parseTar(raw);
         break;
       }
@@ -78,14 +101,13 @@ ros.libarchive = {
     return files;
   },
 
-  async pack(files = {}, password = "") {
+  async pack(files = {}) {
     const zip = new JSZip();
     for (const path in files) zip.file(path, files[path]);
     return await zip.generateAsync({
       type: "uint8array",
       compression: "DEFLATE",
-      compressionOptions: { level: 9 },
-      password: password || undefined
+      compressionOptions: { level: 9 }
     });
   }
 };

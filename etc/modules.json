@@ -15,6 +15,7 @@
   "lzma",
   "memfs",
   "nanoid",
+  "crypto",
   "jszip",
   "tauri",
   "diskman",

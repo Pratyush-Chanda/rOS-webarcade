@@ -12,7 +12,9 @@ ros.apps = {
   launch(name) {
     const app = this.registry[name];
     if (app) {
-      ros.proc.addTask({ name, pid: ros.proc.tasks.length });
+      // Was `pid: ros.proc.tasks.length` — fine until any task is ever
+      // removed, at which point the length-based id collides/repeats.
+      ros.proc.addTask({ name, pid: ros.nanoid ? ros.nanoid(8) : Date.now() });
       app();
     } else {
       console.warn(`App "${name}" not found.`);

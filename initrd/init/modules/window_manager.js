@@ -37,9 +37,12 @@ ros.windows = {
       zIndex: this.zIndex++
     });
 
+    win.dataset.winId = ros.nanoid ? ros.nanoid(8) : `w${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
+
     document.body.appendChild(win);
     this.windows.push(win);
     requestAnimationFrame(() => win.classList.add("open"));
+    ros.events?.emit("ros:window:opened", { id: win.dataset.winId, title });
 
     // Bring to front on click
     win.addEventListener("mousedown", () => {
@@ -114,7 +117,7 @@ ros.windows = {
       win.addEventListener("animationend", () => {
         win.style.display = "none";
         win.classList.remove("minimizing");
-        ros.events?.emit("window:minimized", { title });
+        ros.events?.emit("ros:window:minimized", { id: win.dataset.winId, title });
       }, { once: true });
     };
 
@@ -136,8 +139,30 @@ ros.windows = {
       win.addEventListener("animationend", () => {
         win.remove();
         this.windows = this.windows.filter(w => w !== win);
+        ros.events?.emit("ros:window:closed", { id: win.dataset.winId, title });
       }, { once: true });
     };
+  },
+
+  // Previously the only way to affect a window after creation was to click
+  // its DOM buttons directly — nothing else in rOS (apps.js, panel.js) had
+  // a programmatic way to restore, focus, or close a window it opened.
+  restore(id) {
+    const win = this.windows.find(w => w.dataset.winId === id);
+    if (!win) return;
+    win.style.display = "";
+    win.style.zIndex = this.zIndex++;
+    ros.events?.emit("ros:window:restored", { id, title: win.querySelector(".ros-title")?.textContent });
+  },
+
+  focus(id) {
+    const win = this.windows.find(w => w.dataset.winId === id);
+    if (win) win.style.zIndex = this.zIndex++;
+  },
+
+  close(id) {
+    const win = this.windows.find(w => w.dataset.winId === id);
+    win?.querySelector(".ros-controls .close")?.click();
   }
 };
 
@@ -146,12 +171,12 @@ const style = document.createElement("style");
 style.textContent = `
 .ros-window {
   position: absolute;
-  background: #222;
-  color: white;
+  background: var(--ros-window-bg, #222);
+  color: var(--ros-window-title, white);
   border-radius: 6px;
   box-shadow: 0 0 12px rgba(0,0,0,0.6);
   overflow: hidden;
-  border: 1px solid #444;
+  border: 1px solid var(--ros-window-border, #444);
   min-width: 200px;
   min-height: 150px;
   display: flex;
@@ -168,7 +193,7 @@ style.textContent = `
 @keyframes fadeOut  { from { opacity:1; transform:scale(1);    } to { opacity:0; transform:scale(0.9); } }
 @keyframes minimize { from { opacity:1; transform:scale(1);    } to { opacity:0; transform:scale(0.8) translateY(20px); } }
 .ros-titlebar {
-  background: #111;
+  background: var(--ros-window-titlebar, #111);
   padding: 0.5em;
   display: flex;
   justify-content: space-between;
@@ -180,11 +205,12 @@ style.textContent = `
 .ros-controls button {
   background: transparent;
   border: none;
-  color: white;
+  color: var(--ros-window-title, white);
   font-size: 0.9em;
   cursor: pointer;
   margin-left: 4px;
 }
+.ros-controls button.close:hover { color: var(--ros-window-close, #ff5f56); }
 .ros-content { flex: 1; padding: 1em; overflow: auto; }
 .ros-resizer { position: absolute; background: transparent; z-index: 10; }
 .ros-resizer.n  { top:-2px;    left:0;    right:0;   height:5px;  cursor:n-resize;  }
