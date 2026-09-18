@@ -45,6 +45,7 @@ ros.power = {
       // we're still here shortly after, show the "close it yourself"
       // message inside our own shutdown screen instead of a jarring
       // native alert() on top of it.
+      console.log("[power] Pre-close diagnostics — history.length:", history.length, "| has opener:", !!window.opener);
       window.close();
 
       setTimeout(() => {
