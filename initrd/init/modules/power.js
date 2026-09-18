@@ -34,10 +34,30 @@ ros.power = {
     showPowerScreen("Goodbye!", () => {
       if (ros.tauri?.available) {
         ros.tauri.exitApp();
-      } else {
-        window.close();
-        setTimeout(() => alert("Please close the tab manually."), 500);
+        return;
       }
+
+      // window.close() only succeeds if this tab was opened by a script
+      // (e.g. window.open() from a launcher). Browsers deliberately block
+      // a page from closing a tab the user opened themselves (typed URL,
+      // bookmark, link) — there's no JS workaround for that, it's a
+      // security boundary. So: try it (covers the popup case), and if
+      // we're still here shortly after, show the "close it yourself"
+      // message inside our own shutdown screen instead of a jarring
+      // native alert() on top of it.
+      window.close();
+
+      setTimeout(() => {
+        const msg = document.querySelector("#ros-power-screen .ros-power-message");
+        if (!msg) return;
+        const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+        msg.innerHTML = `
+          Goodbye!
+          <div style="font-size:1rem;opacity:0.7;margin-top:1rem;">
+            It's safe to close this tab now (${isMac ? "Cmd" : "Ctrl"}+W)
+          </div>
+        `;
+      }, 400);
     });
   },
 
