@@ -20,5 +20,6 @@
   "tauri",
   "diskman",
   { "name": "panel", "path": "/lib/desktop/panel.js" },
+  { "name": "desktop", "path": "/lib/desktop/desktop.js" },
   "boot"
 ]

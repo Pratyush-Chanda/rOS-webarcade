@@ -142,6 +142,11 @@ ros.windows = {
         ros.events?.emit("ros:window:closed", { id: win.dataset.winId, title });
       }, { once: true });
     };
+
+    // Previously nothing was returned, so a caller had no way to reach back
+    // into the window it just opened (e.g. to wire up click handlers on
+    // custom content) without re-querying the whole document for it.
+    return win;
   },
 
   // Previously the only way to affect a window after creation was to click

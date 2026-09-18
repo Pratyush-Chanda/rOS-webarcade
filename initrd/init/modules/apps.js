@@ -29,3 +29,11 @@ ros.apps.register("test", () => {
     content: "<p>Test dummy window.</p>"
   });
 });
+
+// Real Files app — reuses desktop.js's folder browser (ros.desktop is
+// resolved lazily here at launch time, not at registration time, so load
+// order between apps.js and desktop.js doesn't matter).
+ros.apps.register("files", () => {
+  if (ros.desktop?.openHomeWindow) ros.desktop.openHomeWindow();
+  else console.warn("[apps] desktop module not available yet");
+});
