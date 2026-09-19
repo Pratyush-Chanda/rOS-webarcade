@@ -125,7 +125,21 @@ ros.windows = {
       win.classList.add("transitioning");
       if (!isMaximized) {
         prevState = { left: win.style.left, top: win.style.top, width: win.style.width, height: win.style.height };
-        Object.assign(win.style, { left: "0px", top: "0px", width: "100vw", height: "100vh" });
+        // Previously this went straight to top:0/100vh, which put the
+        // window's top edge directly under the panel's higher z-index —
+        // visually clipping under it instead of stopping above it.
+        // Measure the actual panel height at click time (not hardcoded)
+        // so this stays correct if the panel's height ever changes; if
+        // panel.js isn't running at all (no #top-panel in the DOM), there's
+        // nothing to leave room for, so it maximizes fully as before.
+        const panelEl = document.getElementById("top-panel");
+        const panelHeight = panelEl ? panelEl.getBoundingClientRect().height : 0;
+        Object.assign(win.style, {
+          left:   "0px",
+          top:    `${panelHeight}px`,
+          width:  "100vw",
+          height: `calc(100vh - ${panelHeight}px)`
+        });
         isMaximized = true;
       } else {
         Object.assign(win.style, prevState);
